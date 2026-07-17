@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_purchase_order_form_document_smart_links" model="ir.ui.view">
+        <field name="name">purchase.order.form.document.smart.links</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_view_smart_receipts"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-truck"
+                    attrs="{'invisible': [('smart_receipt_count', '=', 0)]}"
+                >
+                    <field name="smart_receipt_count" widget="statinfo" string="Receipts"/>
+                </button>
+                <button
+                    name="action_view_smart_vendor_bills"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-file-text-o"
+                    attrs="{'invisible': [('smart_vendor_bill_count', '=', 0)]}"
+                >
+                    <field name="smart_vendor_bill_count" widget="statinfo" string="Vendor Bills"/>
+                </button>
+                <button
+                    name="action_view_smart_payments"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-money"
+                    attrs="{'invisible': [('smart_payment_count', '=', 0)]}"
+                >
+                    <field name="smart_payment_count" widget="statinfo" string="Payments"/>
+                </button>
+                <button
+                    name="action_view_smart_vendor_credit_notes"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-undo"
+                    attrs="{'invisible': [('smart_vendor_credit_note_count', '=', 0)]}"
+                >
+                    <field
+                        name="smart_vendor_credit_note_count"
+                        widget="statinfo"
+                        string="Vendor Credit Notes"
+                    />
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>
