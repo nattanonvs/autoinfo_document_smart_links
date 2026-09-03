@@ -195,3 +195,6 @@ AI Coding Assistant: TRAE SOLO / MICROSOFT 365 COPILOT - Utilized to support cod
   - ระบุว่า customer payments นับเฉพาะ matched payments และไม่รวม unmatched payments
   - เพิ่มหมายเหตุเรื่อง dedupe ของ customer payments และ deliveries depth ที่ไม่รวม return pickings
   - ปรับ note เรื่อง compute reuse / performance guard บน `res.partner` ให้ตรงกับโค้ดจริง
+  - ตัด smart button `Receipts` และ `Vendor Bills` ที่ซ้ำบนหน้า `Purchase Order`
+  - คงปุ่มมาตรฐานของ Odoo สำหรับ `Receipt` และ `Vendor Bills` เอาไว้
+  - เพิ่ม regression test กันปุ่มซ้ำบนหน้า `Purchase Order`

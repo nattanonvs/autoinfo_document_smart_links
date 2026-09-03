@@ -1,6 +1,6 @@
 {
     "name": "AutoInfo Document Smart Links",
-    "version": "15.0.1.2.3",
+    "version": "15.0.1.2.4",
     "summary": "Smart buttons เชื่อม Sale Order / Delivery / Accounting และรวม Credit Notes + Debit Notes",
     "author": "AutoInfo, The Auto-Info Co., Ltd.",
     "license": "LGPL-3",

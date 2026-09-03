@@ -7,24 +7,6 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
-                    name="action_view_smart_receipts"
-                    type="object"
-                    class="oe_stat_button"
-                    icon="fa-truck"
-                    attrs="{'invisible': [('smart_receipt_count', '=', 0)]}"
-                >
-                    <field name="smart_receipt_count" widget="statinfo" string="Receipts"/>
-                </button>
-                <button
-                    name="action_view_smart_vendor_bills"
-                    type="object"
-                    class="oe_stat_button"
-                    icon="fa-file-text-o"
-                    attrs="{'invisible': [('smart_vendor_bill_count', '=', 0)]}"
-                >
-                    <field name="smart_vendor_bill_count" widget="statinfo" string="Vendor Bills"/>
-                </button>
-                <button
                     name="action_view_smart_payments"
                     type="object"
                     class="oe_stat_button"

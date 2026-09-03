@@ -2,12 +2,133 @@ from lxml import etree
 
 from odoo import fields
 from odoo.addons.purchase_stock.tests.common import PurchaseTestCommon
-from odoo.tests.common import Form
+from odoo.tests.common import Form, TransactionCase
 from odoo.tests import tagged
 
 
 @tagged("post_install", "-at_install")
+class TestPurchaseOrderSmartButtonViewRegression(TransactionCase):
+    def test_purchase_order_form_view_does_not_duplicate_standard_buttons(self):
+        arch = self.env["purchase.order"].fields_view_get(view_type="form")["arch"]
+        view = etree.fromstring(arch.encode())
+
+        self.assertFalse(
+            view.xpath("//button[@name='action_view_smart_receipts']"),
+            "purchase.order form view should not add a duplicate Receipts smart button "
+            "because Odoo already provides the standard receipt button.",
+        )
+        self.assertFalse(
+            view.xpath("//button[@name='action_view_smart_vendor_bills']"),
+            "purchase.order form view should not add a duplicate Vendor Bills smart "
+            "button because Odoo already provides the standard vendor bill button.",
+        )
+        self.assertTrue(
+            view.xpath("//button[@name='action_view_picking']"),
+            "purchase.order form view should keep the standard Odoo receipt button.",
+        )
+        self.assertTrue(
+            view.xpath("//button[@name='action_view_invoice']"),
+            "purchase.order form view should keep the standard Odoo vendor bill button.",
+        )
+
+
+@tagged("post_install", "-at_install")
 class TestPurchaseDocumentSmartLinks(PurchaseTestCommon):
+    @classmethod
+    def _get_account(cls, account_type_xmlid, code, name, reconcile=False):
+        account_type = cls.env.ref(account_type_xmlid)
+        account = cls.env["account.account"].search(
+            [
+                ("company_id", "=", cls.env.company.id),
+                ("user_type_id", "=", account_type.id),
+            ],
+            limit=1,
+        )
+        if account:
+            return account
+        return cls.env["account.account"].create(
+            {
+                "name": name,
+                "code": code,
+                "user_type_id": account_type.id,
+                "reconcile": reconcile,
+                "company_id": cls.env.company.id,
+            }
+        )
+
+    @classmethod
+    def _get_journal(cls, journal_type, code, name, default_account=None):
+        journal = cls.env["account.journal"].search(
+            [("type", "=", journal_type), ("company_id", "=", cls.env.company.id)],
+            limit=1,
+        )
+        if journal:
+            return journal
+        journal_vals = {
+            "name": name,
+            "code": code,
+            "type": journal_type,
+            "company_id": cls.env.company.id,
+        }
+        if default_account:
+            journal_vals["default_account_id"] = default_account.id
+        return cls.env["account.journal"].create(journal_vals)
+
+    @classmethod
+    def _ensure_purchase_accounting_setup(cls):
+        cls.receivable_account = cls._get_account(
+            "account.data_account_type_receivable",
+            "TPSR%s" % cls.env.company.id,
+            "Test Purchase Receivable",
+            reconcile=True,
+        )
+        cls.payable_account = cls._get_account(
+            "account.data_account_type_payable",
+            "TPSP%s" % cls.env.company.id,
+            "Test Purchase Payable",
+            reconcile=True,
+        )
+        cls.expense_account = cls._get_account(
+            "account.data_account_type_expenses",
+            "TPSE%s" % cls.env.company.id,
+            "Test Purchase Expense",
+        )
+        cls.liquidity_account = cls._get_account(
+            "account.data_account_type_liquidity",
+            "TPSL%s" % cls.env.company.id,
+            "Test Purchase Liquidity",
+        )
+        cls.outstanding_receipts_account = cls._get_account(
+            "account.data_account_type_current_assets",
+            "TPSOR%s" % cls.env.company.id,
+            "Test Purchase Outstanding Receipts",
+            reconcile=True,
+        )
+        cls.outstanding_payments_account = cls._get_account(
+            "account.data_account_type_current_assets",
+            "TPSOP%s" % cls.env.company.id,
+            "Test Purchase Outstanding Payments",
+            reconcile=True,
+        )
+        cls.env.company.write(
+            {
+                "account_journal_payment_debit_account_id": cls.outstanding_receipts_account.id,
+                "account_journal_payment_credit_account_id": cls.outstanding_payments_account.id,
+            }
+        )
+        cls.purchase_journal = cls._get_journal(
+            "purchase",
+            "TPJ1",
+            "Test Purchase Journal",
+            default_account=cls.expense_account,
+        )
+        cls.bank_journal = cls._get_journal(
+            "bank",
+            "TPB1",
+            "Test Purchase Bank Journal",
+            default_account=cls.liquidity_account,
+        )
+
     @classmethod
     def _ensure_purchase_journal(cls):
         journal = cls.env["account.journal"].search(
@@ -130,7 +251,12 @@ class TestPurchaseDocumentSmartLinks(PurchaseTestCommon):
         payment_register = cls.env["account.payment.register"].with_context(
             active_model="account.move",
             active_ids=bills.ids,
-        ).create({"payment_date": fields.Date.today()})
+        ).create(
+            {
+                "payment_date": fields.Date.today(),
+                "journal_id": cls.bank_journal.id,
+            }
+        )
         if amount is not None:
             payment_register.write(
                 {
@@ -144,10 +270,16 @@ class TestPurchaseDocumentSmartLinks(PurchaseTestCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.purchase_journal = cls._ensure_purchase_journal()
+        cls._ensure_purchase_accounting_setup()
         cls.purchase_expense_account = cls._ensure_purchase_expense_account()
         cls.vendor = cls.env["res.partner"].create(
-            {"name": "Vendor A", "supplier_rank": 1}
+            {
+                "name": "Vendor A",
+                "supplier_rank": 1,
+                "property_account_receivable_id": cls.receivable_account.id,
+                "property_account_payable_id": cls.payable_account.id,
+                "company_id": cls.env.company.id,
+            }
         )
         cls.po = cls.env["purchase.order"].create(
             {
@@ -329,13 +461,8 @@ class TestPurchaseDocumentSmartLinks(PurchaseTestCommon):
         view = etree.fromstring(arch.encode())
 
         for button_name, count_field in (
-            ("action_view_smart_receipts", "smart_receipt_count"),
-            ("action_view_smart_vendor_bills", "smart_vendor_bill_count"),
             ("action_view_smart_payments", "smart_payment_count"),
-            (
-                "action_view_smart_vendor_credit_notes",
-                "smart_vendor_credit_note_count",
-            ),
+            ("action_view_smart_vendor_credit_notes", "smart_vendor_credit_note_count"),
         ):
             buttons = view.xpath("//button[@name='%s']" % button_name)
             self.assertTrue(
@@ -347,6 +474,25 @@ class TestPurchaseDocumentSmartLinks(PurchaseTestCommon):
                 "purchase.order smart button %s should display %s."
                 % (button_name, count_field),
             )
+
+        self.assertFalse(
+            view.xpath("//button[@name='action_view_smart_receipts']"),
+            "purchase.order form view should not add a duplicate Receipts smart button "
+            "because Odoo already provides the standard receipt button.",
+        )
+        self.assertFalse(
+            view.xpath("//button[@name='action_view_smart_vendor_bills']"),
+            "purchase.order form view should not add a duplicate Vendor Bills smart "
+            "button because Odoo already provides the standard vendor bill button.",
+        )
+        self.assertTrue(
+            view.xpath("//button[@name='action_view_picking']"),
+            "purchase.order form view should keep the standard Odoo receipt button.",
+        )
+        self.assertTrue(
+            view.xpath("//button[@name='action_view_invoice']"),
+            "purchase.order form view should keep the standard Odoo vendor bill button.",
+        )
 
     def test_receipt_form_view_exposes_all_purchase_smart_buttons(self):
         arch = self.env["stock.picking"].fields_view_get(view_type="form")["arch"]
